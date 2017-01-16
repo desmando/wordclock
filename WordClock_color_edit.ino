@@ -1,424 +1,189 @@
-//Brent Graham, 2016
+// This #include statement was automatically added by the Particle IDE.
+#include "neopixel/neopixel.h"
 
-#include <Adafruit_GFX.h>
-#include <Adafruit_NeoMatrix.h>
-#include <Adafruit_NeoPixel.h>
-#include <Wire.h>         //http://arduino.cc/en/Reference/Wire (included with Arduino IDE)
-#include "RTClib.h"
-#define PIN 6
+// IMPORTANT: Set pixel COUNT, PIN and TYPE
+#define PIXEL_PIN D2
+#define PIXEL_COUNT 121
+#define PIXEL_TYPE WS2812B
 
-//IF CLOCK TIME IS WRONG: RUN FILE->EXAMPLE->DS1307RTC->SET TIME
+int tzOffset;
+int mytimemonth;
+int mytimeday;
+int mytimehr;
+int mytimemin;
+int mytimesec;
 
-RTC_DS3231 rtc;
-
-// matrix of 11 - 16 bit ints (shorts) for displaying the leds
-uint16_t mask[11];
-
-/* notes for my arduino wiring:
- * pin 2: top button (set)
- * pin 3: middle button (up)
- * pin 4: bottom button (down)
- * pin 6: LED strand data
- * pin A0: photosensor
- * pin A4: RTC Module SDA
- * pin A5: RTC Module SCL
- */
-
-  int buttonSet=2;
-  int buttonUp=3;
-  int buttonDown=4;
-  int photoResistor=A0;
-  int photoRead;
-  int dimmer=1;
-
-  //////////////////////////////////SET COLORS/////////////////////////////
-
-  //WORDCLOCK COLORS
-  int wordred   = 80;
-  int wordblue  = 255;
-  int wordgreen = 160;
-
-  //DIGIT COLORS (HOURS)
-  int hourred   = 130;
-  int hourblue  = 130;
-  int hourgreen = 130;
-  //DIGIT COLORS (MINUTES)
-  int minred    = 250;
-  int minblue   = 250;
-  int mingreen  = 250;
-
-  //DATE COLORS (MONTH)
-  int monthred   = 125;
-  int monthblue  = 25;
-  int monthgreen = 50;
-  //DATE COLORS (DAY)
-  int dayred    = 250;
-  int dayblue   = 50;
-  int daygreen  = 100;
-
-  //DIMABLE (once photoresistor is programmed)
-  int dimred=wordred/dimmer;
-  int dimblue=wordblue/dimmer;
-  int dimgreen=wordgreen/dimmer;
-  
-//////////////////////////////////////////////////////////////////////////////
-
-  int mytimemonth;
-  int mytimeday;
-  int mytimehr;
-  int mytimemin;
-  int mytimesec;
-  
-  int j; //an integer for the color shifting effect
-
-  int mode = 0;
-  int lastState = LOW;   // the previous reading from the input pin
-  int buttonState;
-  // the following variables are long's because the time, measured in miliseconds,
-  // will quickly become a bigger number than can be stored in an int.
-  long lastDebounceTime = 0;  // the last time the output pin was toggled
-  long debounceDelay = 50;    // the debounce time; increase if the output flickers
-  
-#define WORD_MODE 0
-#define DIGIT_MODE 1
-#define DATE_MODE 2
-#define BDAY_MODE 3
-#define MAX_MODE 4
-
-#define phraseITS        mask[0]  |= 0xE000
-#define phraseA          mask[0]  |= 0x800
-#define phraseFIVE       mask[2]  |= 0x1E0
-#define phraseTEN        mask[1]  |= 0x7000
-#define phraseQUARTER    mask[1]  |= 0xFE0
-#define phraseTWENTY     mask[2]  |= 0xFC00
-#define phraseHALF       mask[0]  |= 0x3C0
-#define phrasePAST       mask[3]  |= 0x3C0
-#define phraseTIL        mask[3]  |= 0x1C00
-#define hourONE          mask[9]  |= 0xE000
-#define hourTWO          mask[7]  |= 0xE0
-#define hourTHREE        mask[9]  |= 0x3E0
-#define hourFOUR         mask[10] |= 0xF000
-#define hourFIVE         mask[7]  |= 0xF000
-#define hourSIX          mask[9]  |= 0x1C00
-#define hourSEVEN        mask[4]  |= 0x7C00
-#define hourEIGHT        mask[8]  |= 0x3E0
-#define hourNINE         mask[7]  |= 0xF00
-#define hourTEN          mask[6]  |= 0xE0
-#define hourELEVEN       mask[8]  |= 0xFC00
-#define hourNOON         mask[4]  |= 0x1E0
-#define hourMIDNIGHT     mask[6]  |= 0xFF00
-#define phraseOCLOCK     mask[10] |= 0x7E0
-#define phraseHAPPY      mask[0]  |= 0x200, mask[1]  |= 0x200, mask[2]  |= 0x200, mask[3]  |= 0x200, mask[4]  |= 0x200
-#define phraseBIRTHDAY   mask[5]  |= 0x7DC0
-
-typedef uint8_t Character[7];
-const Character charmap[] = {
-  {
-    0b01110,
-    0b10001,
-    0b10001,
-    0b10001,
-    0b10001,
-    0b10001,
-    0b01110
-  },
-  {
-    0b00100,
-    0b01100,
-    0b00100,
-    0b00100,
-    0b00100,
-    0b00100,
-    0b01110
-  },
-  {
-    0b01110,
-    0b10001,
-    0b00001,
-    0b00010,
-    0b00100,
-    0b01000,
-    0b11111
-  },
-  {
-    0b11111,
-    0b00010,
-    0b00100,
-    0b00010,
-    0b00001,
-    0b10001,
-    0b01110
-  },
-  {
-    0b00010,
-    0b00110,
-    0b01010,
-    0b10010,
-    0b11111,
-    0b00010,
-    0b00010
-  },
-  {
-    0b11111,
-    0b10000,
-    0b11110,
-    0b00001,
-    0b00001,
-    0b10001,
-    0b01110
-  },
-  {
-    0b00110,
-    0b01000,
-    0b10000,
-    0b11110,
-    0b10001,
-    0b10001,
-    0b01110
-  },
-  {
-    0b11111,
-    0b00001,
-    0b00010,
-    0b00100,
-    0b01000,
-    0b01000,
-    0b01000
-  },
-  {
-    0b01110,
-    0b10001,
-    0b10001,
-    0b01110,
-    0b10001,
-    0b10001,
-    0b01110
-  },
-  {
-    0b01110,
-    0b10001,
-    0b10001,
-    0b01111,
-    0b00001,
-    0b00010,
-    0b01100
-  }
-};
-
-// define pins
-#define NEOPIN 6
-
-// define delays
-#define FLASHDELAY 500  // delay for startup "flashWords" sequence
-#define SHIFTDELAY 100   // controls color shifting speed
-
-// Parameter 1 = number of pixels in matrix
-// Parameter 2 = Arduino pin number (most are valid)
-// Parameter 3 = pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-//Adafruit_NeoPixel matrix = Adafruit_NeoPixel(64, NEOPIN, NEO_GRB + NEO_KHZ800);
-
-// configure for 11x11 neopixel matrix
-Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(11, 11, NEOPIN,
-      NEO_MATRIX_TOP  + NEO_MATRIX_LEFT +
-      NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG,
-      NEO_GRB         + NEO_KHZ800);
-
-void rainbowCycle(uint8_t wait);
-void flashWords(void);
-void pickAPixel(uint8_t x, uint8_t y);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIXEL_COUNT, PIXEL_PIN, PIXEL_TYPE);
 
 void setup() {
-   matrix.begin();
-   Serial.begin(9600);  //Begin serial communcation (for photoresistor to display on serial monitor)
-   
-   pinMode(buttonSet, INPUT_PULLUP);
-   pinMode(buttonUp, INPUT_PULLUP);
-   pinMode(buttonDown, INPUT_PULLUP);
-   pinMode(photoResistor, INPUT);
+  tzOffset=-6;
+  Time.zone(tzOffset);
+  strip.setBrightness(50);
+  strip.begin();
+  strip.show(); // Initialize all pixels to 'off'
+do {
+  strip.setPixelColor(9, 0, 0, 0);
+  strip.setPixelColor(99, 0, 0, 0);
+  strip.setPixelColor(111, 0, 0, 0);
+  strip.setPixelColor(21, 0, 0, 0);
+  strip.setPixelColor(0, random(255), random(255), random(255));
+  strip.setPixelColor(10, random(255), random(255), random(255));
+  strip.setPixelColor(120, random(255), random(255), random(255));
+  strip.setPixelColor(110, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
+  strip.setPixelColor(0, 0, 0, 0);
+  strip.setPixelColor(10, 0, 0, 0);
+  strip.setPixelColor(120, 0, 0, 0);
+  strip.setPixelColor(110, 0, 0, 0);
+  strip.setPixelColor(1, random(255), random(255), random(255));
+  strip.setPixelColor(11, random(255), random(255), random(255));
+  strip.setPixelColor(119, random(255), random(255), random(255));
+  strip.setPixelColor(109, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-   // This info pulled from RTClib.h
- if (! rtc.begin()) {
-    Serial.println("Couldn't find RTC"); //program LEDs to show "NO CLOCK"
-    while (1);
-  }
+  strip.setPixelColor(1, 0, 0, 0);
+  strip.setPixelColor(11, 0, 0, 0);
+  strip.setPixelColor(119, 0, 0, 0);
+  strip.setPixelColor(109, 0, 0, 0);
+  strip.setPixelColor(2, random(255), random(255), random(255));
+  strip.setPixelColor(32, random(255), random(255), random(255));
+  strip.setPixelColor(118, random(255), random(255), random(255));
+  strip.setPixelColor(88, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-  if (rtc.lostPower()) {
-    Serial.println("RTC lost power, lets set the time!"); //program LEDs to show "SET CLOCK"
-    // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    // This line sets the RTC with an explicit date & time, for example to set
-    // January 21, 2014 at 3am you would call:
-    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-  }
-}
+  strip.setPixelColor(2, 0, 0, 0);
+  strip.setPixelColor(32, 0, 0, 0);
+  strip.setPixelColor(118, 0, 0, 0);
+  strip.setPixelColor(88, 0, 0, 0);
+  strip.setPixelColor(3, random(255), random(255), random(255));
+  strip.setPixelColor(33, random(255), random(255), random(255));
+  strip.setPixelColor(117, random(255), random(255), random(255));
+  strip.setPixelColor(87, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-void applyMask() {
+  strip.setPixelColor(3, 0, 0, 0);
+  strip.setPixelColor(33, 0, 0, 0);
+  strip.setPixelColor(117, 0, 0, 0);
+  strip.setPixelColor(87, 0, 0, 0);
+  strip.setPixelColor(4, random(255), random(255), random(255));
+  strip.setPixelColor(54, random(255), random(255), random(255));
+  strip.setPixelColor(116, random(255), random(255), random(255));
+  strip.setPixelColor(66, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-   for (byte row = 0; row < 11; row++) 
-   {
-      for (byte col = 0; col < 16; col++) 
-      {
-         boolean masker = bitRead(mask[row], 15 - col); // bitread is backwards because bitRead reads rightmost digits first. could have defined the word masks differently
-         switch (masker) 
-         {
-            case 0:
-               matrix.drawPixel(col, row, 0);
-               break;
-            case 1:
-              // matrix.drawPixel(col, row, Wheel(((col * 256 / matrix.numPixels()) + j) & 255));
-              // word_mode color set
-               matrix.drawPixel(col, row, matrix.Color(dimred, dimgreen, dimblue));
-               break;
-         }
-      }
-      // reset mask for next time
-      mask[row] = 0;
-   }
+  strip.setPixelColor(4, 0, 0, 0);
+  strip.setPixelColor(54, 0, 0, 0);
+  strip.setPixelColor(116, 0, 0, 0);
+  strip.setPixelColor(66, 0, 0, 0);
+  strip.setPixelColor(5, random(255), random(255), random(255));
+  strip.setPixelColor(55, random(255), random(255), random(255));
+  strip.setPixelColor(115, random(255), random(255), random(255));
+  strip.setPixelColor(65, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
+  strip.setPixelColor(5, 0, 0, 0);
+  strip.setPixelColor(55, 0, 0, 0);
+  strip.setPixelColor(115, 0, 0, 0);
+  strip.setPixelColor(65, 0, 0, 0);
+  strip.setPixelColor(6, random(255), random(255), random(255));
+  strip.setPixelColor(76, random(255), random(255), random(255));
+  strip.setPixelColor(114, random(255), random(255), random(255));
+  strip.setPixelColor(44, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-   matrix.show(); // show it!
-}
+  strip.setPixelColor(6, 0, 0, 0);
+  strip.setPixelColor(76, 0, 0, 0);
+  strip.setPixelColor(114, 0, 0, 0);
+  strip.setPixelColor(44, 0, 0, 0);
+  strip.setPixelColor(7, random(255), random(255), random(255));
+  strip.setPixelColor(77, random(255), random(255), random(255));
+  strip.setPixelColor(113, random(255), random(255), random(255));
+  strip.setPixelColor(43, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
 
-void readModeButton() {
-  int currentState = digitalRead(buttonSet);
-  // If the switch changed, due to noise or pressing:
-  if (currentState == HIGH && lastState == LOW) {
-    delay(1);
-  }
-  else if (currentState == LOW && lastState == HIGH)
-  {
-    // if the button state has changed:
-      mode++;
-      if (mode >= MAX_MODE)
-          mode = WORD_MODE; 
-     delay(1);
-  }
-  lastState = currentState;
+  strip.setPixelColor(7, 0, 0, 0);
+  strip.setPixelColor(77, 0, 0, 0);
+  strip.setPixelColor(113, 0, 0, 0);
+  strip.setPixelColor(43, 0, 0, 0);
+  strip.setPixelColor(8, random(255), random(255), random(255));
+  strip.setPixelColor(98, random(255), random(255), random(255));
+  strip.setPixelColor(112, random(255), random(255), random(255));
+  strip.setPixelColor(22, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
+
+  strip.setPixelColor(8, 0, 0, 0);
+  strip.setPixelColor(98, 0, 0, 0);
+  strip.setPixelColor(112, 0, 0, 0);
+  strip.setPixelColor(22, 0, 0, 0);
+  strip.setPixelColor(9, random(255), random(255), random(255));
+  strip.setPixelColor(99, random(255), random(255), random(255));
+  strip.setPixelColor(111, random(255), random(255), random(255));
+  strip.setPixelColor(21, random(255), random(255), random(255));
+  strip.show();
+  delay(100);
+} while ( Particle.connected() != true );
 }
 
 
 void loop() {
-  
-    DateTime now = rtc.now();
-    mytimemonth=now.month();
-    mytimeday=now.day();
-    mytimehr=now.hour();
-    mytimemin=now.minute();
-    mytimesec=now.second();
-//////////////////////////////////////////PHOTORESISTOR/////////////////////////////////////////////
-    //Photoresistor settings
-    photoRead = analogRead(photoResistor);  
-//    Serial.print(photoRead);     // the raw analog reading
-//      if (photoRead < 200) {
-//        dimmer=5;
-//      } else if (photoRead < 400) {
-//        dimmer=4;
-//      } else if (photoRead < 600) {
-//        dimmer=2;
-//      } else {
-//        dimmer=1;
-//      }
-      delay(100);
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-
     
-    //Serial.print(now.year(), DEC);
-    //Serial.print('/');
-    //Serial.print(now.month(), DEC);
-    //Serial.print('/');
-    //Serial.print(now.day(), DEC);
-    //Serial.print(" (");
-    //Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    //Serial.print(") ");
-    //Serial.print(now.hour(), DEC);
-    //Serial.print(':');
-    //Serial.print(now.minute(), DEC);
-    //Serial.print(':');
-    //Serial.print(now.second(), DEC);
-    //Serial.println();
+if ( Time.hour() > 8  && Time.hour() < 21 ) {
+    //Daytime
+    strip.setBrightness(50);
+}    
 
-  readModeButton();
-
-  if (mode == WORD_MODE)
-    displayWords();
-  else if (mode == DIGIT_MODE)
-    displayDigits();
-  else if (mode == DATE_MODE)
-    displayDate();
-  else if (mode == BDAY_MODE)
-    displayBday();
-    
+if ( Time.hour() > 6 && Time.hour() < 9 ) {
+    //Early morning
+    strip.setBrightness(35);
+}    
+if ( Time.hour() > 20 && Time.hour() < 23 ) {
+    //Late evening
+    strip.setBrightness(35);
+}    
+if ( Time.hour() < 7 ) {
+    strip.setBrightness(15);
+}
+if ( Time.hour() > 22 ) {
+    strip.setBrightness(15);
 }
 
-void draw(uint8_t x, uint8_t y, const Character &c, uint16_t color) {
-  for (int i = 0; i < 7; i++) for (int j = 0; j < 5; j++) {
-    if (bitRead(c[i], j)) matrix.drawPixel(x+4-j, y+i, color);
-
-  }
-};
-
-void displayDigits() {
-  uint8_t units, tens;
-  uint16_t color;
-   
-  if (mytimesec/2 % 2) {
-    units = mytimemin % 10;
-    tens  = mytimemin / 10;
-    //digit_mode color, minutes
-    color = matrix.Color(minred,mingreen,minblue);
-  } else {
-    units = mytimehr % 10;
-    tens  = mytimehr / 10;
-    //digit_mode color, hours
-    color = matrix.Color(hourred,hourgreen,hourblue);
-  }
-  matrix.clear();
- 
-  draw(0, 2, charmap[tens],  color);
-  draw(6, 2, charmap[units], color);
- 
-  matrix.show();
+for (int x=0; x<100; x++)
+ {
+    if ( Time.month()==6 && Time.day()==20) {
+        clean();
+        phraseHappyBirthday();
+        Particle.publish("happy birthday");
+        strip.show();
+        delay(15000);
+    }
+	clean();
+	displayWords();
+        strip.show();
+	delay(15000);
+ }
 }
-
-void displayDate() {
-  uint8_t units, tens;
-  uint16_t color;
-   
-  if (mytimesec/2 % 2) {
-    units = mytimeday % 10;
-    tens  = mytimeday / 10;
-    //digit_mode color, minutes
-    color = matrix.Color(dayred,daygreen,dayblue);
-  } else {
-    units = mytimemonth % 10;
-    tens  = mytimemonth / 10;
-    //digit_mode color, hours
-    color = matrix.Color(monthred,monthgreen,monthblue);
-  }
-  matrix.clear();
- 
-  draw(0, 2, charmap[tens],  color);
-  draw(6, 2, charmap[units], color);
- 
-  matrix.show();
-}
-
-void displayBday() {
-  //Always on
-   phraseHAPPY;
-   phraseBIRTHDAY;
-     applyMask(); 
-}
+	  
 
 void displayWords() {
+    mytimemonth=Time.month();
+    mytimeday=Time.day();
+    mytimehr=Time.hour();
+    mytimemin=Time.minute();
+    mytimesec=Time.second();
+
   //Always on
-   phraseITS;
+   phraseITS();
+
 
 
   //calculate minutes on the hour
@@ -428,327 +193,492 @@ void displayWords() {
     
     if(mytimemin>2 && mytimemin<8){
       
-      phraseFIVE;
-      phrasePAST;
+      phraseFIVE();
+      phrasePAST();
     }
     
     if(mytimemin>7 && mytimemin<13){
       
-      phraseTEN;
-      phrasePAST;
+      phraseTEN();
+      phrasePAST();
     }
     if(mytimemin>12 && mytimemin<18){
       
-      phraseA;
-      phraseQUARTER;
-      phrasePAST;
+      phraseA();
+      phraseQUARTER();
+      phrasePAST();
     }
     if(mytimemin>17 && mytimemin<23){
       
-      phraseTWENTY;
-      phrasePAST;
+      phraseTWENTY();
+      phrasePAST();
     }
     if(mytimemin>22 && mytimemin<28){
       
-      phraseTWENTY;
-      phraseFIVE;
-      phrasePAST;
+      phraseTWENTY();
+      phraseFIVE();
+      phrasePAST();
     }
     if(mytimemin>27 && mytimemin<33){
       
-      phraseHALF;
-      phrasePAST;
+      phraseHALF();
+      phrasePAST();
     }
     if(mytimemin>32 && mytimemin<38){
       
-      phraseTWENTY;
-      phraseFIVE;
-      phraseTIL;
+      phraseTWENTY();
+      phraseFIVE();
+      phraseTIL();
     }
     if(mytimemin>37 && mytimemin<43){
       
-      phraseTWENTY;
-      phraseTIL;
+      phraseTWENTY();
+      phraseTIL();
     }
     if(mytimemin>42 && mytimemin<48){
       
-      phraseA;
-      phraseQUARTER;
-      phraseTIL;
+      phraseA();
+      phraseQUARTER();
+      phraseTIL();
     }    
     if(mytimemin>47 && mytimemin<53){
       
-      phraseTEN;
-      phraseTIL;
+      phraseTEN();
+      phraseTIL();
     }
     if(mytimemin>52 && mytimemin<58){
       
-      phraseFIVE;
-      phraseTIL;
+      phraseFIVE();
+      phraseTIL();
     }
 
 
   // Calculate hour & oclocks
   if(mytimehr==1){
     if(mytimemin>32){
-      hourTWO;
-      phraseOCLOCK;
+      hourTWO();
+      phraseOCLOCK();
     }
     else
     {
-      hourONE;
-      phraseOCLOCK;
+      hourONE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==2){
     if(mytimemin>32){
-      hourTHREE;
-      phraseOCLOCK;
+      hourTHREE();
+      phraseOCLOCK();
     }
     else
     {
-      hourTWO;
-      phraseOCLOCK;
+      hourTWO();
+      phraseOCLOCK();
     }
   }
     if(mytimehr==3){
     if(mytimemin>32){
-      hourFOUR;
-      phraseOCLOCK;
+      hourFOUR();
+      phraseOCLOCK();
     }
     else
     {
-      hourTHREE;
-      phraseOCLOCK;
+      hourTHREE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==4){
     if(mytimemin>32){
-      hourFIVE;
-      phraseOCLOCK;
+      hourFIVE();
+      phraseOCLOCK();
     }
     else
     {
-      hourFOUR;
-      phraseOCLOCK;
+      hourFOUR();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==5){
     if(mytimemin>32){
-      hourSIX;
-      phraseOCLOCK;
+      hourSIX();
+      phraseOCLOCK();
     }
     else
     {
-      hourFIVE;
-      phraseOCLOCK;
+      hourFIVE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==6){
     if(mytimemin>32){
-      hourSEVEN;
-      phraseOCLOCK;
+      hourSEVEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourSIX;
-      phraseOCLOCK;
+      hourSIX();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==7){
     if(mytimemin>32){
-      hourEIGHT;
-      phraseOCLOCK;
+      hourEIGHT();
+      phraseOCLOCK();
     }
     else
     {
-      hourSEVEN;
-      phraseOCLOCK;
+      hourSEVEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==8){
     if(mytimemin>32){
-      hourNINE;
-      phraseOCLOCK;
+      hourNINE();
+      phraseOCLOCK();
     }
     else
     {
-      hourEIGHT;
-      phraseOCLOCK;
+      hourEIGHT();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==9){
     if(mytimemin>32){
-      hourTEN;
-      phraseOCLOCK;
+      hourTEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourNINE;
-      phraseOCLOCK;
+      hourNINE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==10){
     if(mytimemin>32){
-      hourELEVEN;
-      phraseOCLOCK;
+      hourELEVEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourTEN;
-      phraseOCLOCK;
+      hourTEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==11){
     if(mytimemin>32){
-      hourNOON;
+      hourNOON();
     }
     else
     {
-      hourELEVEN;
-      phraseOCLOCK;
+      hourELEVEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==12){
     if(mytimemin>32){
-      hourONE;
-      phraseOCLOCK;
+      hourONE();
+      phraseOCLOCK();
     }
     else
     {
-      hourNOON;
+      hourNOON();
     }
   }
       if(mytimehr==13){
     if(mytimemin>32){
-      hourTWO;
-      phraseOCLOCK;
+      hourTWO();
+      phraseOCLOCK();
     }
     else
     {
-      hourONE;
-      phraseOCLOCK;
+      hourONE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==14){
     if(mytimemin>32){
-      hourTHREE;
-      phraseOCLOCK;
+      hourTHREE();
+      phraseOCLOCK();
     }
     else
     {
-      hourTWO;
-      phraseOCLOCK;
+      hourTWO();
+      phraseOCLOCK();
     }
   }
     if(mytimehr==15){
     if(mytimemin>32){
-      hourFOUR;
-      phraseOCLOCK;
+      hourFOUR();
+      phraseOCLOCK();
     }
     else
     {
-      hourTHREE;
-      phraseOCLOCK;
+      hourTHREE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==16){
     if(mytimemin>32){
-      hourFIVE;
-      phraseOCLOCK;
+      hourFIVE();
+      phraseOCLOCK();
     }
     else
     {
-      hourFOUR;
-      phraseOCLOCK;
+      hourFOUR();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==17){
     if(mytimemin>32){
-      hourSIX;
-      phraseOCLOCK;
+      hourSIX();
+      phraseOCLOCK();
     }
     else
     {
-      hourFIVE;
-      phraseOCLOCK;
+      hourFIVE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==18){
     if(mytimemin>32){
-      hourSEVEN;
-      phraseOCLOCK;
+      hourSEVEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourSIX;
-      phraseOCLOCK;
+      hourSIX();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==19){
     if(mytimemin>32){
-      hourEIGHT;
-      phraseOCLOCK;
+      hourEIGHT();
+      phraseOCLOCK();
     }
     else
     {
-      hourSEVEN;
-      phraseOCLOCK;
+      hourSEVEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==20){
     if(mytimemin>32){
-      hourNINE;
-      phraseOCLOCK;
+      hourNINE();
+      phraseOCLOCK();
     }
     else
     {
-      hourEIGHT;
-      phraseOCLOCK;
+      hourEIGHT();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==21){
     if(mytimemin>32){
-      hourTEN;
-      phraseOCLOCK;
+      hourTEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourNINE;
-      phraseOCLOCK;
+      hourNINE();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==22){
     if(mytimemin>32){
-      hourELEVEN;
-      phraseOCLOCK;
+      hourELEVEN();
+      phraseOCLOCK();
     }
     else
     {
-      hourTEN;
-      phraseOCLOCK;
+      hourTEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==23){
     if(mytimemin>32){
-      hourMIDNIGHT;
+      hourMIDNIGHT();
     }
     else
     {
-      hourELEVEN;
-      phraseOCLOCK;
+      hourELEVEN();
+      phraseOCLOCK();
     }
   }
   if(mytimehr==0){
     if(mytimemin>32){
-      hourONE;
-      phraseOCLOCK;
+      hourONE();
+      phraseOCLOCK();
     }
     else
     {
-      hourMIDNIGHT;
+      hourMIDNIGHT();
     }
   }
-  applyMask(); 
+}
+
+
+void phraseITS() {
+  strip.setPixelColor(110, random(255), random(255), random(255));
+  strip.setPixelColor(111, random(255), random(255), random(255));
+  strip.setPixelColor(112, random(255), random(255), random(255));
+}
+void phraseFIVE() {
+	strip.setPixelColor(95, random(255), random(255), random(255));
+	strip.setPixelColor(96, random(255), random(255), random(255));
+	strip.setPixelColor(97, random(255), random(255), random(255));
+	strip.setPixelColor(98, random(255), random(255), random(255));
+}
+void phraseA() {
+	strip.setPixelColor(114, random(255), random(255), random(255));
+}
+void phraseTEN() {
+	strip.setPixelColor(108, random(255), random(255), random(255));
+	strip.setPixelColor(107, random(255), random(255), random(255));
+	strip.setPixelColor(106, random(255), random(255), random(255));
+}
+void phraseQUARTER() {
+	strip.setPixelColor(105, random(255), random(255), random(255));
+	strip.setPixelColor(104, random(255), random(255), random(255));
+	strip.setPixelColor(103, random(255), random(255), random(255));
+	strip.setPixelColor(102, random(255), random(255), random(255));
+	strip.setPixelColor(101, random(255), random(255), random(255));
+	strip.setPixelColor(100, random(255), random(255), random(255));
+	strip.setPixelColor(99, random(255), random(255), random(255));
+}
+void phraseTWENTY() {
+	strip.setPixelColor(88, random(255), random(255), random(255));
+	strip.setPixelColor(89, random(255), random(255), random(255));
+	strip.setPixelColor(90, random(255), random(255), random(255));
+	strip.setPixelColor(91, random(255), random(255), random(255));
+	strip.setPixelColor(92, random(255), random(255), random(255));
+	strip.setPixelColor(93, random(255), random(255), random(255));
+}
+void phraseHALF() {
+	strip.setPixelColor(116, random(255), random(255), random(255));
+	strip.setPixelColor(117, random(255), random(255), random(255));
+	strip.setPixelColor(118, random(255), random(255), random(255));
+	strip.setPixelColor(119, random(255), random(255), random(255));
+}
+void phrasePAST() {
+	strip.setPixelColor(81, random(255), random(255), random(255));
+	strip.setPixelColor(80, random(255), random(255), random(255));
+	strip.setPixelColor(79, random(255), random(255), random(255));
+	strip.setPixelColor(78, random(255), random(255), random(255));
+}
+void phraseTIL() {
+	strip.setPixelColor(84, random(255), random(255), random(255));
+	strip.setPixelColor(83, random(255), random(255), random(255));
+	strip.setPixelColor(82, random(255), random(255), random(255));
+}
+void hourONE() {
+	strip.setPixelColor(21, random(255), random(255), random(255));
+	strip.setPixelColor(20, random(255), random(255), random(255));
+	strip.setPixelColor(19, random(255), random(255), random(255));
+}
+void hourTWO() {
+	strip.setPixelColor(35, random(255), random(255), random(255));
+	strip.setPixelColor(34, random(255), random(255), random(255));
+	strip.setPixelColor(33, random(255), random(255), random(255));
+}
+void hourTHREE() {
+	strip.setPixelColor(15, random(255), random(255), random(255));
+	strip.setPixelColor(14, random(255), random(255), random(255));
+	strip.setPixelColor(13, random(255), random(255), random(255));
+	strip.setPixelColor(12, random(255), random(255), random(255));
+	strip.setPixelColor(11, random(255), random(255), random(255));
+}
+void hourFOUR() {
+	strip.setPixelColor(0, random(255), random(255), random(255));
+	strip.setPixelColor(1, random(255), random(255), random(255));
+	strip.setPixelColor(2, random(255), random(255), random(255));
+	strip.setPixelColor(3, random(255), random(255), random(255));
+}
+void hourFIVE() {
+	strip.setPixelColor(43, random(255), random(255), random(255));
+	strip.setPixelColor(42, random(255), random(255), random(255));
+	strip.setPixelColor(41, random(255), random(255), random(255));
+	strip.setPixelColor(40, random(255), random(255), random(255));
+}
+void hourSIX() {
+	strip.setPixelColor(18, random(255), random(255), random(255));
+	strip.setPixelColor(17, random(255), random(255), random(255));
+	strip.setPixelColor(16, random(255), random(255), random(255));
+}
+void hourSEVEN() {
+	strip.setPixelColor(67, random(255), random(255), random(255));
+	strip.setPixelColor(68, random(255), random(255), random(255));
+	strip.setPixelColor(69, random(255), random(255), random(255));
+	strip.setPixelColor(70, random(255), random(255), random(255));
+	strip.setPixelColor(71, random(255), random(255), random(255));
+}
+void hourEIGHT() {
+	strip.setPixelColor(28, random(255), random(255), random(255));
+	strip.setPixelColor(29, random(255), random(255), random(255));
+	strip.setPixelColor(30, random(255), random(255), random(255));
+	strip.setPixelColor(31, random(255), random(255), random(255));
+	strip.setPixelColor(32, random(255), random(255), random(255));
+}
+void hourNINE() {
+	strip.setPixelColor(39, random(255), random(255), random(255));
+	strip.setPixelColor(38, random(255), random(255), random(255));
+	strip.setPixelColor(37, random(255), random(255), random(255));
+	strip.setPixelColor(36, random(255), random(255), random(255));
+}
+void hourTEN() {
+	strip.setPixelColor(52, random(255), random(255), random(255));
+	strip.setPixelColor(53, random(255), random(255), random(255));
+	strip.setPixelColor(54, random(255), random(255), random(255));
+}
+void hourELEVEN() {
+	strip.setPixelColor(22, random(255), random(255), random(255));
+	strip.setPixelColor(23, random(255), random(255), random(255));
+	strip.setPixelColor(24, random(255), random(255), random(255));
+	strip.setPixelColor(25, random(255), random(255), random(255));
+	strip.setPixelColor(26, random(255), random(255), random(255));
+	strip.setPixelColor(27, random(255), random(255), random(255));
+}
+void hourNOON() {
+	strip.setPixelColor(73, random(255), random(255), random(255));
+	strip.setPixelColor(74, random(255), random(255), random(255));
+	strip.setPixelColor(75, random(255), random(255), random(255));
+	strip.setPixelColor(76, random(255), random(255), random(255));
+}
+void hourMIDNIGHT() {
+	strip.setPixelColor(44, random(255), random(255), random(255));
+	strip.setPixelColor(45, random(255), random(255), random(255));
+	strip.setPixelColor(46, random(255), random(255), random(255));
+	strip.setPixelColor(47, random(255), random(255), random(255));
+	strip.setPixelColor(48, random(255), random(255), random(255));
+	strip.setPixelColor(49, random(255), random(255), random(255));
+	strip.setPixelColor(50, random(255), random(255), random(255));
+	strip.setPixelColor(51, random(255), random(255), random(255));
+}
+void phraseOCLOCK() {
+	strip.setPixelColor(5, random(255), random(255), random(255));
+	strip.setPixelColor(6, random(255), random(255), random(255));
+	strip.setPixelColor(7, random(255), random(255), random(255));
+	strip.setPixelColor(8, random(255), random(255), random(255));
+	strip.setPixelColor(9, random(255), random(255), random(255));
+	strip.setPixelColor(10, random(255), random(255), random(255));
+}
+void phraseHappyBirthday() {
+	strip.setPixelColor(116, 255, 255, 255);
+	strip.setPixelColor(103, 255, 255, 255);
+	strip.setPixelColor(94, 255, 255, 255);
+	strip.setPixelColor(81, 255, 255, 255);
+	strip.setPixelColor(72, 255, 255, 255);
+	strip.setPixelColor(64, 255, 255, 255);
+	strip.setPixelColor(63, 255, 255, 255);
+	strip.setPixelColor(62, 255, 255, 255);
+	strip.setPixelColor(61, 255, 255, 255);
+	strip.setPixelColor(60, 255, 255, 255);
+	strip.setPixelColor(58, 255, 255, 255);
+	strip.setPixelColor(57, 255, 255, 255);
+	strip.setPixelColor(56, 255, 255, 255);
+}
+void clean() {
+	for (int x=0; x<=120; x++) {
+		strip.setPixelColor(x, 0, 0, 0);
+	}
 }
 
